@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Lecture Mind Map Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        h1, h2 {
+            color: #1a3c34;
+        }
+        #mindmap {
+            height: 400px;
+            border: 1px solid #d1d5da;
+            margin-top: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #explanation {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #d1d5da;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            line-height: 1.6;
+        }
+        #explanation pre {
+            white-space: pre-wrap;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+        }
+        #flowchart {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #d1d5da;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #quiz {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #d1d5da;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error {
+            color: #d32f2f;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        button {
+            background-color: #1a3c34;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #145c4f;
+        }
+        input[type="text"], textarea {
+            padding: 10px;
+            width: 350px;
+            border: 1px solid #d1d5da;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            width: 350px;
+            height: 100px;
+            resize: vertical;
+        }
+        label {
+            font-weight: bold;
+            color: #1a3c34;
+            font-size: 16px;
+            display: block;
+            margin-top: 10px;
+        }
+        ul {
+            padding-left: 20px;
+            list-style-type: disc;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        #summarySection {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>YouTube Lecture Mind Map Generator</h1>
+    <form id="youtubeForm">
+        <label for="youtube_link">Enter YouTube Video Link:</label>
+        <input type="text" id="youtube_link" name="youtube_link" size="50" placeholder="https://www.youtube.com/watch?v=..." required><br><br>
+        <div id="summarySection">
+            <label for="user_summary">Transcript unavailable. Please provide a summary of the video:</label><br>
+            <textarea id="user_summary" name="user_summary" placeholder="Enter a short summary of the video content..."></textarea>
+        </div>
+        <button type="submit">Generate Mind Map & Explanation</button>
+        <button type="button" id="quizButton">Generate Quiz</button>
+    </form>
+    <div id="error" class="error"></div>
+    <div id="mindmap"></div>
+    <div id="explanation"></div>
+    <div id="flowchart"></div>
+    <div id="quiz"></div>
+
+    <script>
+        // Initialize Mermaid for flowchart rendering
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+
+        // Handle mind map, explanation, and flowchart generation
+        document.getElementById('youtubeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const youtubeLink = document.getElementById('youtube_link').value;
+            const userSummary = document.getElementById('user_summary').value;
+            const errorDiv = document.getElementById('error');
+            const summarySection = document.getElementById('summarySection');
+            errorDiv.textContent = '';  // Use textContent for consistency
+
+            try {
+                const formData = new FormData();
+                formData.append('youtube_link', youtubeLink);
+                if (userSummary) {
+                    formData.append('user_summary', userSummary);
+                }
+
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Hide summary section if successful
+                    summarySection.style.display = 'none';
+                    document.getElementById('user_summary').value = '';
+
+                    // Render mind map using vis.js
+                    const nodes = [];
+                    const edges = [];
+                    let nodeId = 1;
+
+                    nodes.push({ id: nodeId, label: data.mind_map.central_topic, color: '#1a3c34', font: { size: 16, color: '#fff' } });
+                    const centralNodeId = nodeId;
+                    nodeId++;
+
+                    data.mind_map.main_topics.forEach((mainTopic, i) => {
+                        const mainNodeId = nodeId;
+                        nodes.push({ id: mainNodeId, label: mainTopic.title, color: '#2e856e', font: { size: 14, color: '#fff' } });
+                        edges.push({ from: centralNodeId, to: mainNodeId });
+                        nodeId++;
+
+                        mainTopic.subtopics.forEach((subtopic) => {
+                            nodes.push({ id: nodeId, label: `${subtopic.title}\n${subtopic.notes}`, color: '#e8f5e9', font: { size: 12, color: '#1a3c34' } });
+                            edges.push({ from: mainNodeId, to: nodeId });
+                            nodeId++;
+                        });
+                    });
+
+                    const container = document.getElementById('mindmap');
+                    const mindmapData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+                    const options = {
+                        layout: { hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 150, nodeSpacing: 200 } },
+                        nodes: { shape: 'box', borderWidth: 2 },
+                        edges: { color: '#1a3c34', arrows: 'to' },
+                        physics: { enabled: false }
+                    };
+                    new vis.Network(container, mindmapData, options);
+
+                    // Render explanation
+                    document.getElementById('explanation').innerHTML = `<h2>Explanation</h2><pre>${data.explanation}</pre>`;
+
+                    // Render flowchart using Mermaid
+                    const flowchartDiv = document.getElementById('flowchart');
+                    flowchartDiv.innerHTML = `<h2>Flowchart</h2><div class="mermaid">${data.flowchart}</div>`;
+                    mermaid.init(undefined, flowchartDiv.querySelector('.mermaid'));
+                } else {
+                    errorDiv.textContent = data.error || 'An error occurred while processing the request.';
+                    if (data.needs_summary) {
+                        summarySection.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                errorDiv.textContent = 'An error occurred: ' + err.message;
+                console.error('Frontend error:', err);
+            }
+        });
+
+        // Handle quiz generation
+        document.getElementById('quizButton').addEventListener('click', async () => {
+            const youtubeLink = document.getElementById('youtube_link').value;
+            const userSummary = document.getElementById('user_summary').value;
+            const errorDiv = document.getElementById('error');
+            const summarySection = document.getElementById('summarySection');
+            errorDiv.textContent = '';
+
+            try {
+                const formData = new FormData();
+                formData.append('youtube_link', youtubeLink);
+                if (userSummary) {
+                    formData.append('user_summary', userSummary);
+                }
+
+                const response = await fetch('/generate_quiz', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Hide summary section if successful
+                    summarySection.style.display = 'none';
+                    document.getElementById('user_summary').value = '';
+
+                    const quizDiv = document.getElementById('quiz');
+                    quizDiv.innerHTML = '<h2>Quiz</h2>';
+                    data.questions.forEach((q, index) => {
+                        quizDiv.innerHTML += `
+                            <p><strong>${index + 1}. ${q.question}</strong></p>
+                            <ul>
+                                ${q.options.map(opt => `<li>${opt}</li>`).join('')}
+                            </ul>
+                            <p><strong>Answer:</strong> ${q.correct_answer}</p>
+                        `;
+                    });
+                } else {
+                    errorDiv.textContent = data.error || 'An error occurred while generating the quiz.';
+                    if (data.needs_summary) {
+                        summarySection.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                errorDiv.textContent = 'An error occurred: ' + err.message;
+                console.error('Frontend error:', err);
+            }
+        });
+    </script>
+</body>
+</html>
